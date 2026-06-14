@@ -90,12 +90,12 @@
         .overlay-title { font-size: 1.2rem; margin-bottom: 15px; font-weight: bold; }
         .target-buttons { display: flex; flex-direction: column; gap: 10px; }
         .btn-target { background: #333; padding: 15px; font-size: 1.1rem; border: none; }
-        .btn-cancel { background: #555; margin-top: 15px; width: 100%; }
+        .btn-cancel { background: #555; margin-top: 12px; width: 100%; }
         
-        /* Standalone Numeric Input formatting inside overlay */
-        .num-input-group { display: flex; gap: 10px; margin-top: 15px; }
-        .num-field { flex-grow: 1; background: #000; border: 1px solid #555; color: var(--success); text-align: center; font-size: 1.5rem; font-weight: bold; padding: 10px; border-radius: 5px; }
-        .btn-confirm-chips { background: var(--success); color: #000; font-size: 1.1rem; border: none; padding: 0 20px; }
+        /* Stacked Numeric Input formatting inside overlay for mobile clearance */
+        .num-input-group { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+        .num-field { width: 100%; background: #000; border: 1px solid #555; color: var(--success); text-align: center; font-size: 1.6rem; font-weight: bold; padding: 12px; border-radius: 5px; }
+        .btn-confirm-chips { background: var(--success); color: #000; font-size: 1.1rem; border: none; padding: 14px; border-radius: 5px; width: 100%; }
 
         /* End Game Zone */
         .end-game-zone { background: #1a233a; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #2c3e6b; text-align: center;}
@@ -344,7 +344,7 @@
                 prompt.innerText = `Enter Final Chips for ${actor.name}:`;
                 document.getElementById('popup-chip-value').value = actor.finalChips || '';
                 numContainer.style.display = 'block';
-                overlay.style.display = 'flex'; // FIXED: Unhide the background overlay container first
+                overlay.style.display = 'flex';
                 setTimeout(() => document.getElementById('popup-chip-value').focus(), 50);
                 return;
             }
