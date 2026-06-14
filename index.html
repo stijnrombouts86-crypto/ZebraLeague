@@ -175,7 +175,6 @@
             if (savedRoster) {
                 masterRoster = JSON.parse(savedRoster);
             } else {
-                // Pre-populate with dummy data if empty so it's not barren
                 masterRoster = ["Alice", "Bob", "Charlie"];
                 saveRosterToStorage();
             }
@@ -200,7 +199,6 @@
                 const item = document.createElement('div');
                 item.className = 'roster-item';
                 
-                // See if player is already active in the game right now
                 const isActive = players.some(p => p.name.toLowerCase() === name.toLowerCase());
 
                 item.innerHTML = `
@@ -248,7 +246,6 @@
 
             checkboxes.forEach(cb => {
                 const name = cb.value;
-                // Double check they aren't already running in current game context
                 if (!players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
                     const player = {
                         id: Date.now() + Math.random().toString(36).substr(2, 5),
@@ -347,7 +344,7 @@
                 prompt.innerText = `Enter Final Chips for ${actor.name}:`;
                 document.getElementById('popup-chip-value').value = actor.finalChips || '';
                 numContainer.style.display = 'block';
-                overlay.style.display = 'flex';
+                overlay.style.display = 'flex'; // FIXED: Unhide the background overlay container first
                 setTimeout(() => document.getElementById('popup-chip-value').focus(), 50);
                 return;
             }
@@ -548,4 +545,4 @@
         }
     </script>
 </body>
-</html>s
+</html>
