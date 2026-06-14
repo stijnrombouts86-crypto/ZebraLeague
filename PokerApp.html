@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamlined Poker Tracker</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --accent: #00adb5;
+            --text: #eeeeee;
+            --danger: #ff2e63;
+            --success: #21bf73;
+            --warning: #f2a365;
+            --bad-beat: #9c27b0;
+        }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text); margin: 0; padding: 10px; padding-bottom: 240px; }
+        
+        /* Setup / Header */
+        .header { background: var(--card-bg); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid var(--accent); }
+        .stats { display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; margin-top: 10px;}
+        .setup-zone { display: flex; gap: 10px; margin-bottom: 10px; }
+        input, button { background: #333; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 5px; font-size: 1rem; }
+        input[type="text"] { flex-grow: 1; }
+        button { cursor: pointer; font-weight: bold; }
+        button:active { transform: scale(0.98); }
+        .btn-add { background: var(--accent); color: #fff; border: none; }
+
+        /* Master Roster Database Styles */
+        .roster-zone { background: #181818; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px dashed #444; }
+        .roster-title { font-size: 0.95rem; font-weight: bold; margin-bottom: 8px; color: var(--accent); display: flex; justify-content: space-between; }
+        .roster-grid { display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 5px; margin-bottom: 10px; }
+        .roster-item { display: inline-flex; align-items: center; background: #252525; padding: 6px 10px; border-radius: 4px; font-size: 0.9rem; border: 1px solid #333; }
+        .roster-item input[type="checkbox"] { margin-right: 8px; transform: scale(1.1); cursor: pointer; }
+        .btn-delete-member { background: none; border: none; color: var(--danger); margin-left: 8px; padding: 0 3px; font-size: 0.8rem; cursor: pointer; }
+        .roster-actions { display: flex; gap: 10px; }
+        .btn-activate { background: var(--success); color: #000; border: none; flex-grow: 1; }
+
+        /* Responsive Player Grid Layout (Up to 3 Columns) */
+        #players-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        @media (min-width: 600px) {
+            #players-container { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (min-width: 950px) {
+            #players-container { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        .player-card { 
+            background: var(--card-bg); 
+            padding: 15px; 
+            border-radius: 8px; 
+            border: 1px solid #2d2d2d; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .player-card.eliminated { opacity: 0.4; border-color: var(--danger); }
+        .player-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .player-name { font-size: 1.3rem; font-weight: bold; }
+        .player-vitals { font-size: 0.85rem; color: #aaa; text-align: right; }
+        
+        /* Action Buttons Grid */
+        .action-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+        .btn-action { padding: 12px 5px; font-size: 0.9rem; text-transform: uppercase; border: none; color: #fff; }
+        .btn-rebuy { background: #3a3b3c; border: 1px solid #555; }
+        .btn-peak-chip { background: #512da8; }
+        .btn-ko { background: var(--danger); }
+        .btn-peak-player { background: #0288d1; }
+        .btn-shoot { background: #f57c00; }
+        .btn-bad-beat { background: var(--bad-beat); }
+        
+        /* Locked Chip Readout Row */
+        .chip-display-zone { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; background: #252525; padding: 10px; border-radius: 5px; border-left: 4px solid var(--success);}
+        .chip-count-badge { color: var(--success); font-weight: bold; font-size: 1.2rem; font-family: monospace; }
+        .payout-badge { color: var(--warning); font-weight: bold; font-size: 1rem; margin-left: 10px; }
+        .btn-chips-action { background: #222; border: 1px solid var(--success); color: var(--success); font-size: 0.85rem; padding: 6px 12px; }
+
+        /* Overlay Target Picker & Numeric Prompt */
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+        .overlay-content { background: var(--card-bg); width: 100%; max-width: 400px; padding: 20px; border-radius: 8px; text-align: center; }
+        .overlay-title { font-size: 1.2rem; margin-bottom: 15px; font-weight: bold; }
+        .target-buttons { display: flex; flex-direction: column; gap: 10px; }
+        .btn-target { background: #333; padding: 15px; font-size: 1.1rem; border: none; }
+        .btn-cancel { background: #555; margin-top: 15px; width: 100%; }
+        
+        /* Standalone Numeric Input formatting inside overlay */
+        .num-input-group { display: flex; gap: 10px; margin-top: 15px; }
+        .num-field { flex-grow: 1; background: #000; border: 1px solid #555; color: var(--success); text-align: center; font-size: 1.5rem; font-weight: bold; padding: 10px; border-radius: 5px; }
+        .btn-confirm-chips { background: var(--success); color: #000; font-size: 1.1rem; border: none; padding: 0 20px; }
+
+        /* End Game Zone */
+        .end-game-zone { background: #1a233a; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #2c3e6b; text-align: center;}
+        .btn-submit { background: var(--success); border: none; width: 100%; padding: 15px; font-size: 1.1rem; margin-bottom: 10px;}
+
+        /* Bottom Live Feed */
+        .feed-container { position: fixed; bottom: 0; left: 0; right: 0; height: 90px; background: #0a0a0a; border-top: 2px solid var(--accent); padding: 10px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; z-index: 900; }
+        .feed-entry { margin-bottom: 4px; color: #00ff66; }
+        .feed-entry.ko { color: var(--danger); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <!-- Database Roster Picker Segment -->
+        <div class="roster-zone">
+            <div class="roster-title">
+                <span>Player Database (Saved Locally)</span>
+                <span style="font-size: 0.75rem; color: #aaa;">Check box to select for tonight's game</span>
+            </div>
+            <div class="roster-grid" id="master-roster-grid"></div>
+            <div class="roster-actions">
+                <button class="btn-activate" onclick="activateSelectedPlayers()">⚡ Activate Selected Players</button>
+            </div>
+        </div>
+
+        <!-- Quick Add Panel (Saves to DB and can auto-buyin) -->
+        <div class="setup-zone" id="setup-panel">
+            <input type="text" id="new-player-name" placeholder="New Player Name">
+            <button class="btn-add" onclick="createNewDatabasePlayer()">+ Add to DB</button>
+        </div>
+        
+        <div class="stats">
+            <div>Total Pot: <span id="total-pot">0</span>€</div>
+            <div style="font-size: 0.9rem; color: #aaa; align-self: center;">Buy-in: 10€ | Rebuy: 5€ | Peak: 1€</div>
+        </div>
+    </div>
+
+    <div id="players-container"></div>
+
+    <div class="end-game-zone">
+        <h3>End Game Leaders & Standings</h3>
+        <p style="font-size:0.85rem; color:#aaa; margin-top:-10px;">Ensure final chip counts are set before exporting your ledger.</p>
+        <button class="btn-submit" onclick="exportStandings()">Calculate & Export Leaderboard (.txt)</button>
+    </div>
+
+    <div class="overlay" id="target-overlay">
+        <div class="overlay-content">
+            <div class="overlay-title" id="overlay-prompt">Select Target</div>
+            <div class="target-buttons" id="target-buttons-container"></div>
+            <div id="numeric-input-container" style="display: none;">
+                <div class="num-input-group">
+                    <input type="number" id="popup-chip-value" class="num-field" placeholder="0" pattern="[0-9]*" inputmode="numeric">
+                    <button class="btn-confirm-chips" onclick="executeChipSubmission()">Save</button>
+                </div>
+            </div>
+            <button class="btn-cancel" onclick="closeOverlay()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="feed-container" id="live-feed">
+        <div class="feed-entry">➔ Game tracker initialized. Select database players or add new names to begin.</div>
+    </div>
+
+    <script>
+        let masterRoster = []; // Saved players pool
+        let players = [];      // Active players in current session
+        let totalPot = 0;
+        let gameLog = []; 
+        
+        let currentActorId = null;
+        let currentActionType = null; 
+
+        // Load database pool on initial page startup
+        window.onload = function() {
+            const savedRoster = localStorage.getItem('pokerMasterRoster');
+            if (savedRoster) {
+                masterRoster = JSON.parse(savedRoster);
+            } else {
+                // Pre-populate with dummy data if empty so it's not barren
+                masterRoster = ["Alice", "Bob", "Charlie"];
+                saveRosterToStorage();
+            }
+            renderRosterGrid();
+            render();
+        };
+
+        function saveRosterToStorage() {
+            localStorage.setItem('pokerMasterRoster', JSON.stringify(masterRoster));
+        }
+
+        function renderRosterGrid() {
+            const grid = document.getElementById('master-roster-grid');
+            grid.innerHTML = '';
+            
+            if (masterRoster.length === 0) {
+                grid.innerHTML = '<div style="color:#666; font-size:0.85rem; padding: 5px;">Database empty. Type a name below to create players.</div>';
+                return;
+            }
+
+            masterRoster.sort().forEach(name => {
+                const item = document.createElement('div');
+                item.className = 'roster-item';
+                
+                // See if player is already active in the game right now
+                const isActive = players.some(p => p.name.toLowerCase() === name.toLowerCase());
+
+                item.innerHTML = `
+                    <label style="display:flex; align-items:center; cursor:pointer;">
+                        <input type="checkbox" value="${name}" ${isActive ? 'disabled checked' : ''}>
+                        <span style="${isActive ? 'color: #666; text-decoration: line-through;' : ''}">${name}</span>
+                    </label>
+                    <button class="btn-delete-member" onclick="deleteDatabasePlayer('${name}')" title="Delete from DB">×</button>
+                `;
+                grid.appendChild(item);
+            });
+        }
+
+        function createNewDatabasePlayer() {
+            const nameInput = document.getElementById('new-player-name');
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            if (masterRoster.map(n => n.toLowerCase()).includes(name.toLowerCase())) {
+                alert("This name already exists in your player database!");
+                return;
+            }
+
+            masterRoster.push(name);
+            saveRosterToStorage();
+            nameInput.value = '';
+            renderRosterGrid();
+        }
+
+        function deleteDatabasePlayer(name) {
+            if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                alert("Cannot delete this player while they are actively participating in the current match tracker!");
+                return;
+            }
+            if (confirm(`Are you sure you want to permanently delete "${name}" from the database?`)) {
+                masterRoster = masterRoster.filter(n => n !== name);
+                saveRosterToStorage();
+                renderRosterGrid();
+            }
+        }
+
+        function activateSelectedPlayers() {
+            const checkboxes = document.querySelectorAll('#master-roster-grid input[type="checkbox"]:checked');
+            let activatedCount = 0;
+
+            checkboxes.forEach(cb => {
+                const name = cb.value;
+                // Double check they aren't already running in current game context
+                if (!players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                    const player = {
+                        id: Date.now() + Math.random().toString(36).substr(2, 5),
+                        name: name,
+                        buyins: 1, 
+                        rebuys: 0,
+                        peakChips: 0,
+                        eliminated: false,
+                        finalChips: 0,
+                        
+                        kosDelivered: 0,
+                        peaksInitiated: 0,
+                        peaksReceived: 0,
+                        shotsInitiated: 0,
+                        shotsReceived: 0,
+                        badBeatsDelivered: 0,
+                        badBeatsReceived: 0
+                    };
+                    players.push(player);
+                    logFeed(`➔ ${player.name} entered the game (10€ Buy-in).`);
+                    activatedCount++;
+                }
+            });
+
+            if (activatedCount > 0) {
+                updatePot();
+                renderRosterGrid();
+                render();
+            } else {
+                alert("Please check the boxes of unactivated database players first!");
+            }
+        }
+
+        function getPlayerExpenses(p) {
+            return (p.buyins * 10) + (p.rebuys * 5) + (p.peakChips * 1);
+        }
+
+        function calculateNetPayout(chips, expenses) {
+            let cleanChips = parseInt(chips) || 0;
+            let grossPayout = cleanChips * 0.005;
+            let net = grossPayout - expenses;
+            return (net >= 0 ? "+" : "") + net.toFixed(2);
+        }
+
+        function updatePot() {
+            let total = 0;
+            players.forEach(p => {
+                total += getPlayerExpenses(p);
+            });
+            totalPot = total;
+            document.getElementById('total-pot').innerText = totalPot;
+        }
+
+        function logFeed(message, isKo = false) {
+            const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            gameLog.push(`[${timestamp}] ${message}`);
+
+            const feed = document.getElementById('live-feed');
+            const entry = document.createElement('div');
+            entry.className = isKo ? 'feed-entry ko' : 'feed-entry';
+            entry.innerText = `[${timestamp}] ${message}`;
+            feed.insertBefore(entry, feed.firstChild);
+        }
+
+        function handleRebuy(id) {
+            const p = players.find(x => x.id === id);
+            p.rebuys++;
+            p.eliminated = false; 
+            logFeed(`💵 ${p.name} purchased a REBUY (5€).`);
+            updatePot();
+            render();
+        }
+
+        function handlePeakChips(id) {
+            const p = players.find(x => x.id === id);
+            p.peakChips++;
+            logFeed(`🪙 ${p.name} bought PEAKING CHIPS (1€).`);
+            updatePot();
+            render();
+        }
+
+        function openTargetPicker(actorId, actionType) {
+            currentActorId = actorId;
+            currentActionType = actionType;
+            
+            const actor = players.find(x => x.id === actorId);
+            const overlay = document.getElementById('target-overlay');
+            const prompt = document.getElementById('overlay-prompt');
+            const container = document.getElementById('target-buttons-container');
+            const numContainer = document.getElementById('numeric-input-container');
+            
+            container.innerHTML = '';
+            numContainer.style.display = 'none';
+
+            if (actionType === 'chips') {
+                prompt.innerText = `Enter Final Chips for ${actor.name}:`;
+                document.getElementById('popup-chip-value').value = actor.finalChips || '';
+                numContainer.style.display = 'block';
+                overlay.style.display = 'flex';
+                setTimeout(() => document.getElementById('popup-chip-value').focus(), 50);
+                return;
+            }
+            
+            let verb = actionType === 'ko' ? 'KNOCK OUT' : actionType === 'peak' ? 'PEAK' : actionType === 'shoot' ? 'SHOOT' : 'BAD BEAT';
+            prompt.innerText = `${actor.name} is going to ${verb}:`;
+
+            players.forEach(target => {
+                if (target.id === actorId) return;
+                if (actionType === 'ko' && target.eliminated) return; 
+
+                const btn = document.createElement('button');
+                btn.className = 'btn-target';
+                btn.innerText = target.name;
+                btn.onclick = () => executeTargetAction(target.id);
+                container.appendChild(btn);
+            });
+
+            if(container.children.length === 0) {
+                container.innerHTML = '<div style="color:#aaa; padding:20px;">No valid targets available.</div>';
+            }
+            overlay.style.display = 'flex';
+        }
+
+        function closeOverlay() {
+            document.getElementById('target-overlay').style.display = 'none';
+            currentActorId = null;
+            currentActionType = null;
+        }
+
+        function executeTargetAction(targetId) {
+            const actor = players.find(x => x.id === currentActorId);
+            const target = players.find(x => x.id === targetId);
+
+            if (currentActionType === 'ko') {
+                target.eliminated = true;
+                actor.kosDelivered++;
+                logFeed(`💀 ${actor.name} KNOCKED OUT ${target.name}!`, true);
+            } else if (currentActionType === 'peak') {
+                actor.peaksInitiated++;
+                target.peaksReceived++;
+                logFeed(`👀 ${actor.name} PEAKED ${target.name}.`);
+            } else if (currentActionType === 'shoot') {
+                actor.shotsInitiated++;
+                target.shotsReceived++;
+                logFeed(`💥 ${actor.name} SHOT ${target.name}!!`);
+            } else if (currentActionType === 'badbeat') {
+                actor.badBeatsDelivered++;
+                target.badBeatsReceived++;
+                logFeed(`💔 ${actor.name} gave a brutal BAD BEAT to ${target.name}!!!`);
+            }
+
+            closeOverlay();
+            render();
+        }
+
+        function executeChipSubmission() {
+            const actor = players.find(x => x.id === currentActorId);
+            const inputVal = document.getElementById('popup-chip-value').value;
+            const cleanChips = parseInt(inputVal) || 0;
+            
+            actor.finalChips = cleanChips;
+            let expenses = getPlayerExpenses(actor);
+            logFeed(`📊 Final chips locked for ${actor.name}: ${cleanChips.toLocaleString()} (Net: ${calculateNetPayout(cleanChips, expenses)}€)`);
+            
+            closeOverlay();
+            render();
+        }
+
+        function getTopPerformers(statKey) {
+            let maxVal = Math.max(...players.map(p => p[statKey]));
+            if (maxVal === 0) return "None";
+            return players.filter(p => p[statKey] === maxVal).map(p => `${p.name} (${maxVal})`).join(', ');
+        }
+
+        function exportStandings() {
+            if(players.length === 0) {
+                alert("No player data to export!");
+                return;
+            }
+
+            const sortedPlayers = [...players].sort((a, b) => {
+                if (a.eliminated && !b.eliminated) return 1;
+                if (!a.eliminated && b.eliminated) return -1;
+                return b.finalChips - a.finalChips;
+            });
+
+            const dateString = new Date().toLocaleDateString();
+            
+            let report = `==================================================\n`;
+            report += `       POKER NIGHT HALL OF FAME & STANDINGS       \n`;
+            report += `       Date: ${dateString}                        \n`;
+            report += `==================================================\n\n`;
+            report += `TOTAL POT VALUE: ${totalPot}€\n\n`;
+
+            // Payout Summary (Net Performance)
+            report += `💰 NET PAYOUT PERFORMANCE REPORT\n`;
+            report += `--------------------------------------------------\n`;
+            sortedPlayers.forEach((p, idx) => {
+                let expenses = getPlayerExpenses(p);
+                let netString = calculateNetPayout(p.finalChips, expenses) + "€ Net";
+                report += `${idx + 1}. ${p.name.padEnd(18)} : ${p.finalChips.toLocaleString().padEnd(10)} Chips -> ${netString}\n`;
+            });
+            report += `--------------------------------------------------\n\n`;
+
+            // Leaders Breakdown
+            report += `🏅 NIGHTLY STAT LEADERS\n`;
+            report += `--------------------------------------------------\n`;
+            report += `💰 Highest Chip Count : ${getTopPerformers('finalChips')}\n`;
+            report += `🔁 Rebuy King         : ${getTopPerformers('rebuys')}\n`;
+            report += `💀 Grim Reaper (KOs)  : ${getTopPerformers('kosDelivered')}\n`;
+            report += `👀 Most Peaking       : ${getTopPerformers('peaksInitiated')}\n`;
+            report += `🎯 Most Peeked (Target): ${getTopPerformers('peaksReceived')}\n`;
+            report += `🔫 The Gunslinger     : ${getTopPerformers('shotsInitiated')}\n`;
+            report += `🛡️ Most Shot At        : ${getTopPerformers('shotsReceived')}\n`;
+            report += `💔 Bad Beat Dealer    : ${getTopPerformers('badBeatsDelivered')}\n`;
+            report += `🩹 Most Unfortunate    : ${getTopPerformers('badBeatsReceived')}\n`;
+            report += `--------------------------------------------------\n\n`;
+
+            // Dossiers
+            report += `📋 INDIVIDUAL PLAYER DOSSIERS:\n`;
+            report += `--------------------------------------------------\n`;
+
+            sortedPlayers.forEach((p, idx) => {
+                let status = p.eliminated ? "[ELIMINATED]" : "[ACTIVE]";
+                let expenses = getPlayerExpenses(p);
+                
+                report += `${idx + 1}. ${p.name} ${status}\n`;
+                report += `   • Final Chips   : ${p.finalChips.toLocaleString()} (${calculateNetPayout(p.finalChips, expenses)}€ Net Clear)\n`;
+                report += `   • Total Buy-ins : 10€ Initial + ${p.rebuys} Rebuys (5€) + ${p.peakChips} Peak Chips (1€) -> [Total Invested: ${expenses}€]\n`;
+                report += `   • Knockouts     : ${p.kosDelivered}\n`;
+                report += `   • Peaking Actions: Peaked Others: ${p.peaksInitiated} | Was Peeked: ${p.peaksReceived}\n`;
+                report += `   • Shooting Match: Shots Fired: ${p.shotsInitiated}   | Was Shot: ${p.shotsReceived}\n`;
+                report += `   • Bad Beats     : Delivered: ${p.badBeatsDelivered}     | Received: ${p.badBeatsReceived}\n`;
+                report += `--------------------------------------------------\n`;
+            });
+
+            report += `\n\n==================================================\n`;
+            report += `               RAW GAME HISTORY                   \n`;
+            report += `==================================================\n`;
+            gameLog.forEach(log => {
+                report += `${log}\n`;
+            });
+
+            const blob = new Blob([report], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Poker_Final_Leaderboard_${new Date().toISOString().slice(0,10)}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function render() {
+            const container = document.getElementById('players-container');
+            container.innerHTML = '';
+
+            if (players.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#666; margin-top:40px; grid-column: span 3;">No active match tracking. Check database members above and click Activate to start!</div>';
+                return;
+            }
+
+            players.forEach(p => {
+                const card = document.createElement('div');
+                card.className = `player-card ${p.eliminated ? 'eliminated' : ''}`;
+                
+                let expenses = getPlayerExpenses(p);
+                let netPayout = calculateNetPayout(p.finalChips, expenses);
+
+                card.innerHTML = `
+                    <div>
+                        <div class="player-header">
+                            <div class="player-name">${p.name} ${p.eliminated ? '(OUT)' : ''}</div>
+                            <div class="player-vitals">Rebuys: ${p.rebuys}<br>Peaks Bought: ${p.peakChips}</div>
+                        </div>
+                        
+                        <div class="action-grid">
+                            <button class="btn-action btn-rebuy" onclick="handleRebuy('${p.id}')">+ Rebuy (5€)</button>
+                            <button class="btn-action btn-peak-chip" onclick="handlePeakChips('${p.id}')">+ Peak (1€)</button>
+                            <button class="btn-action btn-ko" onclick="openTargetPicker('${p.id}', 'ko')" ${p.eliminated ? 'disabled' : ''}>Knockout ➔</button>
+                            <button class="btn-action btn-peak-player" onclick="openTargetPicker('${p.id}', 'peak')" ${p.eliminated ? 'disabled' : ''}>Peak Who ➔</button>
+                            <button class="btn-action btn-shoot" onclick="openTargetPicker('${p.id}', 'shoot')" ${p.eliminated ? 'disabled' : ''}>Shoot Who ➔</button>
+                            <button class="btn-action btn-bad-beat" onclick="openTargetPicker('${p.id}', 'badbeat')" ${p.eliminated ? 'disabled' : ''}>Bad Beat ➔</button>
+                        </div>
+                    </div>
+
+                    <div class="chip-display-zone">
+                        <div>
+                            <span style="font-size:0.9rem; color:#aaa;">Chips:</span>
+                            <span class="chip-count-badge">${p.finalChips.toLocaleString()}</span>
+                            <span class="payout-badge">(${netPayout}€ Net)</span>
+                        </div>
+                        <button class="btn-chips-action" onclick="openTargetPicker('${p.id}', 'chips')">Set Chips ➔</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>s
