@@ -38,7 +38,7 @@
         .roster-actions { display: flex; gap: 10px; }
         .btn-activate { background: var(--success); color: #000; border: none; flex-grow: 1; }
 
-        /* Responsive Player Grid Layout (Up to 3 Columns) */
+        /* Responsive Player Grid Layout */
         #players-container {
             display: grid;
             grid-template-columns: 1fr;
@@ -99,7 +99,7 @@
 
         /* End Game Zone */
         .end-game-zone { background: #1a233a; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #2c3e6b; text-align: center;}
-        .btn-submit { background: var(--success); border: none; width: 100%; padding: 15px; font-size: 1.1rem; margin-bottom: 10px;}
+        .btn-submit { background: #107c41; border: none; width: 100%; padding: 15px; font-size: 1.1rem; margin-bottom: 10px;}
 
         /* Bottom Live Feed */
         .feed-container { position: fixed; bottom: 0; left: 0; right: 0; height: 90px; background: #0a0a0a; border-top: 2px solid var(--accent); padding: 10px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; z-index: 900; }
@@ -110,7 +110,6 @@
 <body>
 
     <div class="header">
-        <!-- Database Roster Picker Segment -->
         <div class="roster-zone">
             <div class="roster-title">
                 <span>Player Database (Saved Locally)</span>
@@ -122,7 +121,6 @@
             </div>
         </div>
 
-        <!-- Quick Add Panel (Saves to DB and can auto-buyin) -->
         <div class="setup-zone" id="setup-panel">
             <input type="text" id="new-player-name" placeholder="New Player Name">
             <button class="btn-add" onclick="createNewDatabasePlayer()">+ Add to DB</button>
@@ -139,7 +137,7 @@
     <div class="end-game-zone">
         <h3>End Game Leaders & Standings</h3>
         <p style="font-size:0.85rem; color:#aaa; margin-top:-10px;">Ensure final chip counts are set before exporting your ledger.</p>
-        <button class="btn-submit" onclick="exportStandings()">Calculate & Export Leaderboard (.txt)</button>
+        <button class="btn-submit" onclick="exportToExcel()">📈 Calculate & Export to Excel (.xlsx)</button>
     </div>
 
     <div class="overlay" id="target-overlay">
@@ -382,7 +380,7 @@
             if (currentActionType === 'ko') {
                 target.eliminated = true;
                 actor.kosDelivered++;
-                logFeed(`💀 ${actor.name} KNOCKED OUT ${target.name}!`, true);
+                logFeed(`🥊 ${actor.name} KNOCKED OUT ${target.name}!`, true);
             } else if (currentActionType === 'peak') {
                 actor.peaksInitiated++;
                 target.peaksReceived++;
@@ -390,7 +388,7 @@
             } else if (currentActionType === 'shoot') {
                 actor.shotsInitiated++;
                 target.shotsReceived++;
-                logFeed(`💥 ${actor.name} SHOT ${target.name}!!`);
+                logFeed(`🔫 ${actor.name} SHOT ${target.name}!!`);
             } else if (currentActionType === 'badbeat') {
                 actor.badBeatsDelivered++;
                 target.badBeatsReceived++;
@@ -417,82 +415,169 @@
         function getTopPerformers(statKey) {
             let maxVal = Math.max(...players.map(p => p[statKey]));
             if (maxVal === 0) return "None";
-            return players.filter(p => p[statKey] === maxVal).map(p => `${p.name} (${maxVal})`).join(', ');
+            return players.filter(p => p[statKey] === maxVal).map(p => p.name).join(', ') + ` (${maxVal})`;
         }
 
-        function exportStandings() {
-            if(players.length === 0) {
+        // Native Internet-Free Multi-Tab Excel Spreadsheet Exporter (.xlsx/xml)
+        function exportToExcel() {
+            if (players.length === 0) {
                 alert("No player data to export!");
                 return;
             }
 
+            const dateString = new Date().toLocaleDateString();
             const sortedPlayers = [...players].sort((a, b) => {
                 if (a.eliminated && !b.eliminated) return 1;
                 if (!a.eliminated && b.eliminated) return -1;
                 return b.finalChips - a.finalChips;
             });
 
-            const dateString = new Date().toLocaleDateString();
-            
-            let report = `==================================================\n`;
-            report += `       POKER NIGHT HALL OF FAME & STANDINGS       \n`;
-            report += `       Date: ${dateString}                        \n`;
-            report += `==================================================\n\n`;
-            report += `TOTAL POT VALUE: ${totalPot}€\n\n`;
+            // Master XML Spreadsheet Shell Template
+            let xml = `<?xml version="1.0" encoding="utf-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" x:CharSet="0" ss:Size="11" ss:Color="#000000"/>
+  </Style>
+  <Style ss:ID="Title">
+   <Font ss:FontName="Calibri" ss:Size="16" ss:Bold="1" ss:Color="#107C41"/>
+  </Style>
+  <Style ss:ID="HeaderRow">
+   <Interior ss:Color="#107C41" ss:Pattern="Solid"/>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="BoldLabel">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="&quot;€&quot;#,##0.00;[Red]&quot;€&quot;\-#,##0.00"/>
+  </Style>
+  <Style ss:ID="Center">
+   <Alignment ss:Horizontal="Center"/>
+  </Style>
+ </Styles>`;
 
-            // Payout Summary (Net Performance)
-            report += `💰 NET PAYOUT PERFORMANCE REPORT\n`;
-            report += `--------------------------------------------------\n`;
-            sortedPlayers.forEach((p, idx) => {
+            // TAB 1: STANDINGS
+            xml += `
+ <Worksheet ss:Name="Standings">
+  <Table ss:ExpandedColumnCount="11" ss:ExpandedRowCount="${sortedPlayers.length + 6}" x:FullColumns="1" x:FullRows="1">
+   <Column ss:Width="120"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="90"/>
+   <Row ss:Height="25">
+    <Cell ss:StyleID="Title"><Data ss:Type="String">Poker Session Standings - ${dateString}</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="BoldLabel"><Data ss:Type="String">Total Pot Value:</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${totalPot}</Data></Cell>
+   </Row>
+   <Row ss:Index="4" ss:Height="20">
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Player Name</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Status</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Final Chips</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Buy-ins (10€)</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Rebuys (5€)</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Peaks (1€)</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Total Paid</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Gross Cashout</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Net Profit/Loss</Data></Cell>
+   </Row>`;
+
+            sortedPlayers.forEach(p => {
                 let expenses = getPlayerExpenses(p);
-                let netString = calculateNetPayout(p.finalChips, expenses) + "€ Net";
-                report += `${idx + 1}. ${p.name.padEnd(18)} : ${p.finalChips.toLocaleString().padEnd(10)} Chips -> ${netString}\n`;
-            });
-            report += `--------------------------------------------------\n\n`;
+                let gross = (p.finalChips * 0.005);
+                let net = gross - expenses;
+                let statusStr = p.eliminated ? "Eliminated" : "Active";
 
-            // Leaders Breakdown
-            report += `🏅 NIGHTLY STAT LEADERS\n`;
-            report += `--------------------------------------------------\n`;
-            report += `💰 Highest Chip Count : ${getTopPerformers('finalChips')}\n`;
-            report += `🔁 Rebuy King         : ${getTopPerformers('rebuys')}\n`;
-            report += `💀 Grim Reaper (KOs)  : ${getTopPerformers('kosDelivered')}\n`;
-            report += `👀 Most Peaking       : ${getTopPerformers('peaksInitiated')}\n`;
-            report += `🎯 Most Peeked (Target): ${getTopPerformers('peaksReceived')}\n`;
-            report += `🔫 The Gunslinger     : ${getTopPerformers('shotsInitiated')}\n`;
-            report += `🛡️ Most Shot At        : ${getTopPerformers('shotsReceived')}\n`;
-            report += `💔 Bad Beat Dealer    : ${getTopPerformers('badBeatsDelivered')}\n`;
-            report += `🩹 Most Unfortunate    : ${getTopPerformers('badBeatsReceived')}\n`;
-            report += `--------------------------------------------------\n\n`;
-
-            // Dossiers
-            report += `📋 INDIVIDUAL PLAYER DOSSIERS:\n`;
-            report += `--------------------------------------------------\n`;
-
-            sortedPlayers.forEach((p, idx) => {
-                let status = p.eliminated ? "[ELIMINATED]" : "[ACTIVE]";
-                let expenses = getPlayerExpenses(p);
-                
-                report += `${idx + 1}. ${p.name} ${status}\n`;
-                report += `   • Final Chips   : ${p.finalChips.toLocaleString()} (${calculateNetPayout(p.finalChips, expenses)}€ Net Clear)\n`;
-                report += `   • Total Buy-ins : 10€ Initial + ${p.rebuys} Rebuys (5€) + ${p.peakChips} Peak Chips (1€) -> [Total Invested: ${expenses}€]\n`;
-                report += `   • Knockouts     : ${p.kosDelivered}\n`;
-                report += `   • Peaking Actions: Peaked Others: ${p.peaksInitiated} | Was Peeked: ${p.peaksReceived}\n`;
-                report += `   • Shooting Match: Shots Fired: ${p.shotsInitiated}   | Was Shot: ${p.shotsReceived}\n`;
-                report += `   • Bad Beats     : Delivered: ${p.badBeatsDelivered}     | Received: ${p.badBeatsReceived}\n`;
-                report += `--------------------------------------------------\n`;
+                xml += `
+   <Row>
+    <Cell><Data ss:Type="String">${p.name}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${statusStr}</Data></Cell>
+    <Cell><Data ss:Type="Number">${p.finalChips}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="Number">${p.buyins}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="Number">${p.rebuys}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="Number">${p.peakChips}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${expenses}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${gross}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${net}</Data></Cell>
+   </Row>`;
             });
 
-            report += `\n\n==================================================\n`;
-            report += `               RAW GAME HISTORY                   \n`;
-            report += `==================================================\n`;
+            xml += `
+  </Table>
+ </Worksheet>`;
+
+            // TAB 2: LEADERS AND STATS DETAILED DOSSIERS
+            xml += `
+ <Worksheet ss:Name="Nightly Award Leaders">
+  <Table ss:ExpandedColumnCount="3" ss:ExpandedRowCount="12" x:FullColumns="1" x:FullRows="1">
+   <Column ss:Width="160"/>
+   <Column ss:Width="220"/>
+   <Row ss:Height="25">
+    <Cell ss:StyleID="Title"><Data ss:Type="String">Nightly Award Winners</Data></Cell>
+   </Row>
+   <Row ss:Index="3" ss:Height="20">
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Award Category</Data></Cell>
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Winner Name &amp; Count</Data></Cell>
+   </Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">💰 Highest Chip Count</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('finalChips')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">🔁 Rebuy King</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('rebuys')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">🥊 Grim Reaper (KOs)</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('kosDelivered')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">👀 Most Peaking</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('peaksInitiated')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">🎯 Target of Peaks</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('peaksReceived')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">🔫 The Gunslinger</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('shotsInitiated')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">🛡️ Most Shot At</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('shotsReceived')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">💔 Bad Beat Dealer</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('badBeatsDelivered')}</Data></Cell></Row>
+   <Row><Cell ss:StyleID="BoldLabel"><Data ss:Type="String">🩹 Most Unfortunate</Data></Cell><Cell><Data ss:Type="String">${getTopPerformers('badBeatsReceived')}</Data></Cell></Row>
+  </Table>
+ </Worksheet>`;
+
+            // TAB 3: TELEX RAW LOG
+            xml += `
+ <Worksheet ss:Name="Raw Game Log">
+  <Table ss:ExpandedColumnCount="1" ss:ExpandedRowCount="${gameLog.length + 3}" x:FullColumns="1" x:FullRows="1">
+   <Column ss:Width="450"/>
+   <Row ss:Height="25">
+    <Cell ss:StyleID="Title"><Data ss:Type="String">Raw Session Auditing Log</Data></Cell>
+   </Row>
+   <Row ss:Index="3" ss:Height="20">
+    <Cell ss:StyleID="HeaderRow"><Data ss:Type="String">Timestamp &amp; Action Log Entry</Data></Cell>
+   </Row>`;
+
             gameLog.forEach(log => {
-                report += `${log}\n`;
+                // Escape special characters to make valid XML syntax
+                let cleanLog = log.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                xml += `
+   <Row>
+    <Cell><Data ss:Type="String">${cleanLog}</Data></Cell>
+   </Row>`;
             });
 
-            const blob = new Blob([report], { type: 'text/plain' });
+            xml += `
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+            // Bundle up into a real download object attachment
+            const blob = new Blob([xml], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `Poker_Final_Leaderboard_${new Date().toISOString().slice(0,10)}.txt`;
+            
+            // Format standard filename
+            const cleanDate = new Date().toISOString().slice(0, 10);
+            link.download = `Poker_Session_Ledger_${cleanDate}.xls`;
+            
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
